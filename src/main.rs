@@ -11,6 +11,7 @@ use clap::Parser;
 use promkit::{
     crossterm::style::{Attribute, Attributes, Color},
     json, listbox,
+    serde_json::{self, Deserializer},
     style::StyleBuilder,
     text, text_editor,
 };
@@ -146,10 +147,34 @@ fn parse_input(args: &Args) -> Result<String> {
     Ok(ret)
 }
 
+/// Deserializes a JSON string into a vector of `serde_json::Value`.
+///
+/// This function takes a JSON string as input and attempts to parse it into a vector of `serde_json::Value`,
+/// which represents the JSON data in a structured format. It leverages the `serde_json::Deserializer`
+/// to parse the string. If the parsing is successful, it returns a vector of the parsed JSON values.
+/// In case of any error during parsing, it returns an error wrapped in `anyhow::Result`.
+///
+/// # Arguments
+///
+/// * `json_str` - A string slice that holds the JSON data to be deserialized.
+///
+/// # Returns
+///
+/// This function returns an `anyhow::Result<Vec<serde_json::Value>>`. On success, it contains a vector
+/// of `serde_json::Value` representing the deserialized JSON data. On failure, it contains an `anyhow::Error`
+/// detailing what went wrong during deserialization.
+fn deserialize_json(json_str: &str) -> anyhow::Result<Vec<serde_json::Value>> {
+    Deserializer::from_str(json_str)
+        .into_iter::<serde_json::Value>()
+        .map(|res| res.map_err(anyhow::Error::from))
+        .collect::<anyhow::Result<Vec<serde_json::Value>>>()
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
 
     let input = parse_input(&args)?;
+    let input_stream = deserialize_json(&input)?;
 
     let filter_editor = text_editor::State {
         texteditor: Default::default(),
@@ -202,7 +227,7 @@ fn main() -> Result<()> {
     };
 
     let mut prompt = Jnv::try_new(
-        input,
+        input_stream,
         filter_editor,
         hint_message,
         suggestions,
